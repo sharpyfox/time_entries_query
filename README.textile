@@ -1,0 +1,19 @@
+h2. Redmine spented hours filter query plugin
+
+Plugin adds extra operators for time entries query, allowing to select exact issues by this filters:
+
+* Issues by users, who noted spented hours
+* Issues by time entries dates (spent on date)
+
+Plugin add extra column, which show hours quantity, spented by selected users in selected days interval
+
+h3. Compatibility
+
+Plugin was tested on Redmine v1.4.1.stable (MySQL)
+
+h3. History
+
+0.0.1
+
+* First public release
+
