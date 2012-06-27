@@ -26,7 +26,43 @@ module TimeEntryQuery
 				
 				def available_filters_with_time_entry_patch
 					f = available_filters_without_time_entry_patch
-					f["time_entries_users"] = { :type => :list, :order => 25, :values => User.all.collect{|s| [s.name, s.id.to_s]}}          
+					
+					principals = []
+					if project
+						principals += project.principals.sort
+						unless project.leaf?
+							subprojects = project.descendants.visible.all
+							if subprojects.any?
+								@available_filters["subproject_id"] = { :type => :list_subprojects, :order => 13, :values => subprojects.collect{|s| [s.name, s.id.to_s] } }
+								principals += Principal.member_of(subprojects)
+							end
+						end
+					else
+						all_projects = Project.visible.all
+						if all_projects.any?
+							# members of visible projects
+							principals += Principal.member_of(all_projects)
+
+							# project filter
+							project_values = []
+							if User.current.logged? && User.current.memberships.any?
+								project_values << ["<< #{l(:label_my_projects).downcase} >>", "mine"]
+							end
+							Project.project_tree(all_projects) do |p, level|
+								prefix = (level > 0 ? ('--' * level + ' ') : '')
+								project_values << ["#{prefix}#{p.name}", p.id.to_s]
+							end
+							@available_filters["project_id"] = { :type => :list, :order => 1, :values => project_values} unless project_values.empty?
+						end
+					end
+					principals.uniq!
+					principals.sort!
+					users = principals.select {|p| p.is_a?(User)}
+					
+					users_values = []
+					users_values << ["<< #{l(:label_i_am)} >>", "me"] if User.current.logged?
+					users_values += (Setting.issue_group_assignment? ? principals : users).collect{|s| [s.name, s.id.to_s] }
+					f["time_entries_users"] = { :type => :list, :order => 25, :values => users_values}          
 					f["time_entries_dates"] = { :type => :date, :order => 26}          
 					f # return
 				end

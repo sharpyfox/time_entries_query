@@ -17,3 +17,7 @@ h3. History
 
 * First public release
 
+0.0.2
+
+* Translate missing fix
+* User's list by current project

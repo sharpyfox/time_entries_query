@@ -8,7 +8,7 @@ unless Redmine::Plugin.registered_plugins.keys.include?(:time_entries_query_oper
 		author 'Nikita Vasiliev'
 		author_url 'mailto:sharpyfox@gmail.com'
 		description 'Redmine plugin which add filters by time_entries'
-		version '0.0.1'
+		version '0.0.2'
 		requires_redmine :version_or_higher => '1.3.0'
 	end
 end
