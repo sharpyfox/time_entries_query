@@ -70,20 +70,39 @@ module TimeEntryQuery
 				def condition_for_time_entries_dates_field(operator, value)
 					field = 'time_entries_dates' 
 					db_table = TimeEntry.table_name
-					sql_for_field(field, operator, value, db_table, 'spent_on')
+					
+					if operator
+						return sql_for_field(field, operator, value, db_table, 'spent_on')
+					else
+						return '(1=1)'
+					end
 				end
 
-				def sql_for_time_entries_users_field(field, operator, value)
+				def sql_for_time_entries_users_field(field, operator, value)					
+					zValue = value.clone
+					if zValue.delete("me")
+						if User.current.logged?
+							zValue.push(User.current.id.to_s)							
+						else
+							zValue.push("0")
+						end
+					end
+
+					zDatesCondition = '1=1'
+					if has_filter?(field)					
+						zDatesCondition = sql_for_field('time_entries_dates', operator_for('time_entries_dates'), values_for('time_entries_dates'), TimeEntry.table_name, 'spent_on')# + '.' + operator_for('time_entries_dates')
+					end
+					
 					sql = case operator
 						when "="						
-							sql = "#{Issue.table_name}.id IN (SELECT DISTINCT #{TimeEntry.table_name}.issue_id FROM #{TimeEntry.table_name} WHERE #{TimeEntry.table_name}.user_id IN (" + value.collect{|val| "'#{connection.quote_string(val)}'"}.join(",") + "))"
+							sql = "#{Issue.table_name}.id IN (SELECT DISTINCT #{TimeEntry.table_name}.issue_id FROM #{TimeEntry.table_name} WHERE #{TimeEntry.table_name}.user_id IN (" + zValue.collect{|val| "'#{connection.quote_string(val)}'"}.join(",") + ") AND (#{zDatesCondition}))"
 						when "!="						
-							sql = "#{Issue.table_name}.id NOT IN (SELECT DISTINCT #{TimeEntry.table_name}.issue_id FROM #{TimeEntry.table_name} WHERE #{TimeEntry.table_name}.user_id IN (" + value.collect{|val| "'#{connection.quote_string(val)}'"}.join(",") + "))"
+							sql = "#{Issue.table_name}.id NOT IN (SELECT DISTINCT #{TimeEntry.table_name}.issue_id FROM #{TimeEntry.table_name} WHERE #{TimeEntry.table_name}.user_id IN (" + zValue.collect{|val| "'#{connection.quote_string(val)}'"}.join(",") + ") AND (#{zDatesCondition}))"
 						else					
 							# IN an empty set
 							sql = "1=0"
 					end			
-					sql
+					return sql
 				end
 		
 				def sql_for_time_entries_dates_field(field, operator, value)
@@ -95,8 +114,22 @@ module TimeEntryQuery
 					issues = issues_without_time_entry_patch(options)
 			
 					if has_column?(:time_by_users)
-						users = values_for('time_entries_users') || []
-						zCondition = condition_for_time_entries_dates_field(operator_for('time_entries_dates'), value_for('time_entries_dates')) || ''
+						users = []
+						
+						if has_filter?('time_entries_users')
+							users = values_for('time_entries_users').clone || []
+						
+							if users.delete("me")
+								if User.current.logged?
+									users.push(User.current.id.to_s)							
+								else
+									users.push("0")
+								end
+							end
+						end						
+							
+						
+						zCondition = condition_for_time_entries_dates_field(operator_for('time_entries_dates'), values_for('time_entries_dates'))						
 						Issue.load_visible_spent_hours_by_users(issues, users, zCondition)
 					end
 		
@@ -112,7 +145,7 @@ module TimeEntryQuery
 		
 		module ClassMethods			
 			ActiveRecord::Base.named_scope :spent_by_users, lambda {|by_users| {	 
-				:conditions => [" #{TimeEntry.table_name}.user_id IN (" + by_users.collect{|u| "'#{u}'"}.join(",") + ") "]	 
+				:conditions => [by_users.empty? ? '' : " #{TimeEntry.table_name}.user_id IN (" + by_users.collect{|u| "'#{u}'"}.join(",") + ") "]	 
 			}}
   
 			ActiveRecord::Base.named_scope :free_condition, lambda {|aCondition| {	 
@@ -133,11 +166,11 @@ module TimeEntryQuery
 		module ClassMethods			
 	
 			def load_visible_spent_hours_by_users(issues, users, aCondition, user=User.current)	
-				if issues.any?    	
+				if issues.any?    											
 					hours_by_issue_id = TimeEntry.visible(user).spent_by_users(users).free_condition(aCondition).sum(:hours, :group => :issue_id)
 					issues.each do |issue|
 						issue.instance_variable_set "@time_by_users", (hours_by_issue_id[issue.id] || 0)		
-					end
+					end					
 				end
 			end
 		end
@@ -145,7 +178,7 @@ module TimeEntryQuery
 		module InstanceMethods
 			def time_by_users
 				if @time_by_users.is_a?(Float)
-					@time_by_users.round(2)
+					"%.2f" % @time_by_users.to_f
 				else
 					@time_by_users
 				end	

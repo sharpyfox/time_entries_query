@@ -21,3 +21,8 @@ h3. History
 
 * Translate missing fix
 * User's list by current project
+
+0.0.3
+
+* Crash when no user selected fix
+* Time calculation fix
